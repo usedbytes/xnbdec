@@ -2,10 +2,185 @@
  * Copyright Brian Starkey 2014 <stark3y@gmail.com>
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define MAX_NAME_LEN 256
+
+enum xnb_object_type {
+	XNB_OBJ_SOUND_EFFECT,
+};
+
+struct xnb_object_head {
+	enum xnb_object_type type;
+};
+
+struct xnb_object_reader {
+	char name[MAX_NAME_LEN];
+	enum xnb_object_type type;
+	struct xnb_object_head *(*deserialize)(FILE *fp);
+	void (*destroy)(struct xnb_object_head *obj);
+	void (*print)(struct xnb_object_head *obj);
+};
+
+struct waveformatex {
+  uint16_t wFormatTag;
+  uint16_t nChannels;
+  uint32_t nSamplesPerSec;
+  uint32_t nAvgBytesPerSec;
+  uint16_t nBlockAlign;
+  uint16_t wBitsPerSample;
+  uint16_t cbSize;
+};
+
+void dump_waveformatex(struct waveformatex *format)
+{
+	printf("[WAVEFORMATEX]\n");
+	printf("wFormatTag: 0x%x\n", format->wFormatTag);
+	printf("nChannels: %d\n", format->nChannels);
+	printf("nSamplesPerSec: %d\n", format->nSamplesPerSec);
+	printf("nAvgBytesPerSec %d\n", format->nAvgBytesPerSec);
+	printf("nBlockAlign %d\n", format->nBlockAlign);
+	printf("wBitsPerSample %d\n", format->wBitsPerSample);
+	printf("cbSize %d\n", format->cbSize);
+	printf("--------------\n");
+}
+
+struct xnb_obj_sound_effect {
+	struct xnb_object_head head;
+	uint32_t format_size;
+	uint8_t *format;
+	uint32_t data_size;
+	uint8_t *data;
+	int32_t loop_start;
+	int32_t loop_length;
+	int32_t	duration;
+};
+
+void sound_effect_print(struct xnb_object_head *obj)
+{
+	struct xnb_obj_sound_effect *eff = (struct xnb_obj_sound_effect *)obj;
+	struct waveformatex format;
+	if (obj == NULL)
+		return
+	assert(obj->type == XNB_OBJ_SOUND_EFFECT);
+
+	memcpy(&format, eff->format, sizeof(format));
+
+	printf("[SoundEffect]\n");
+	printf("Format Size: %d\n", eff->format_size);
+	dump_waveformatex(&format);
+	printf("Data Size: %d\n", eff->data_size);
+	printf("Loop Start: %d\n", eff->loop_start);
+	printf("Loop Length: %d\n", eff->loop_length);
+	printf("Duration: %d\n", eff->duration);
+	printf("-------------\n");
+
+}
+
+void sound_effect_destroy(struct xnb_object_head *obj)
+{
+	struct xnb_obj_sound_effect *eff = (struct xnb_obj_sound_effect *)obj;
+	if (obj == NULL)
+		return
+	assert(obj->type == XNB_OBJ_SOUND_EFFECT);
+
+	free(eff->data);
+	free(eff->format);
+	free(eff);
+}
+
+struct xnb_object_head *sound_effect_read(FILE *fp)
+{
+	struct xnb_obj_sound_effect *eff;
+	size_t read;
+
+	eff = malloc(sizeof(*eff));
+	if (!eff) {
+		fprintf(stderr, "Couldn't alloc effect structure\n");
+		return NULL;
+	}
+	memset(eff, 0, sizeof(*eff));
+	eff->head.type = XNB_OBJ_SOUND_EFFECT;
+
+	read = fread(&eff->format_size, sizeof(eff->format_size), 1, fp);
+	if (read != 1) {
+		fprintf(stderr, "Couldn't read format size\n");
+		goto fail;
+	}
+
+	eff->format = malloc(eff->format_size);
+	if (!eff->format) {
+		fprintf(stderr, "Couldn't alloc format structure\n");
+		goto fail;
+	}
+
+	read = fread(eff->format, 1, eff->format_size, fp);
+	if (read != eff->format_size) {
+		fprintf(stderr, "Couldn't read format structure\n");
+		goto fail;
+	}
+
+	read = fread(&eff->data_size, sizeof(eff->data_size), 1, fp);
+	if (read != 1) {
+		fprintf(stderr, "Couldn't read data size\n");
+		goto fail;
+	}
+
+	eff->data = malloc(eff->data_size);
+	if (!eff->data) {
+		fprintf(stderr, "Couldn't alloc data space\n");
+		goto fail;
+	}
+
+	read = fread(eff->data, 1, eff->data_size, fp);
+	if (read != eff->data_size) {
+		fprintf(stderr, "Couldn't read data\n");
+		goto fail;
+	}
+
+	read = fread(&eff->loop_start, sizeof(eff->loop_start), 1, fp);
+	if (read != 1) {
+		fprintf(stderr, "Couldn't read loop start\n");
+		goto fail;
+	}
+
+	read = fread(&eff->loop_length, sizeof(eff->loop_length), 1, fp);
+	if (read != 1) {
+		fprintf(stderr, "Couldn't read loop length\n");
+		goto fail;
+	}
+
+	read = fread(&eff->duration, sizeof(eff->duration), 1, fp);
+	if (read != 1) {
+		fprintf(stderr, "Couldn't read duration\n");
+		goto fail;
+	}
+
+	return (struct xnb_object_head *)eff;
+
+fail:
+	free(eff->data);
+	free(eff->format);
+	free(eff);
+	return NULL;
+}
+
+struct xnb_object_reader sound_effect_reader = {
+	.name = "Microsoft.Xna.Framework.Content.SoundEffectReader",
+	.type = XNB_OBJ_SOUND_EFFECT,
+	.deserialize = sound_effect_read,
+	.destroy = sound_effect_destroy,
+	.print = sound_effect_print,
+};
+
+struct xnb_object_reader *readers[] = {
+	&sound_effect_reader,
+	NULL,
+};
 
 struct xnb_header {
 	char magic[3];
@@ -18,7 +193,7 @@ struct xnb_header {
 	uint32_t decompressed_size;
 } __attribute__((packed)) ;
 
-struct type_reader {
+struct type_reader_desc {
 	char name[256];
 	int32_t version;
 };
@@ -26,10 +201,10 @@ struct type_reader {
 struct xnb_container {
 	struct xnb_header hdr;
 	int32_t type_reader_count;
-	struct type_reader *readers;
+	struct type_reader_desc *readers;
 	int32_t shared_resource_count;
-	void *primary_asset_data;
-	void **shared_resource_data;
+	struct xnb_object_head *primary_asset;
+	struct xnb_object_head **shared_resources;
 };
 
 /* Modified from MS Document XNB Format.docx
@@ -55,6 +230,48 @@ int Read7BitEncodedInt(FILE *fp)
     return result;
 }
 
+void dump_object(struct xnb_object_head *obj)
+{
+	int i = 0;
+
+	if (obj == NULL)
+		return;
+
+	while (readers[i]) {
+		struct xnb_object_reader *reader = readers[i];
+		if (reader->type == obj->type)
+			return reader->print(obj);
+		i++;
+	}
+}
+
+void destroy_object(struct xnb_object_head *obj)
+{
+	int i = 0;
+
+	if (obj == NULL)
+		return;
+
+	while (readers[i]) {
+		struct xnb_object_reader *reader = readers[i];
+		if (reader->type == obj->type)
+			return reader->destroy(obj);
+		i++;
+	}
+}
+
+struct xnb_object_head *read_object(struct type_reader_desc *rdr, FILE *fp)
+{
+	int i = 0;
+	while (readers[i]) {
+		struct xnb_object_reader *reader = readers[i];
+		if (!strcmp(reader->name, rdr->name))
+			return reader->deserialize(fp);
+		i++;
+	}
+	return NULL;
+}
+
 void dump_header(struct xnb_header *hdr)
 {
 	printf("[XNB Container Header]\n");
@@ -68,7 +285,7 @@ void dump_header(struct xnb_header *hdr)
 	printf("----------------------\n");
 }
 
-void dump_reader(struct type_reader *rdr)
+void dump_reader(struct type_reader_desc *rdr)
 {
 	printf("[Type Reader]\n");
 	printf("Name: %s\n", rdr->name);
@@ -88,6 +305,16 @@ void dump_container(struct xnb_container *cont)
 	}
 	printf("\n");
 	printf("Shared resource count: %d\n", cont->shared_resource_count);
+
+	printf("Primary Asset:\n");
+	dump_object(cont->primary_asset);
+
+	if (cont->shared_resource_count) {
+		printf("Shared Assets:\n");
+		for (i = 0; i < cont->shared_resource_count; i++) {
+			dump_object(cont->shared_resources[i]);
+		}
+	}
 }
 
 int read_header(struct xnb_header *hdr, FILE *fp)
@@ -117,6 +344,11 @@ int read_header(struct xnb_header *hdr, FILE *fp)
 
 void destroy_container(struct xnb_container *cont)
 {
+	int i;
+	for (i = 0; i < cont->shared_resource_count; i++) {
+		destroy_object(cont->shared_resources[i]);
+	}
+	destroy_object(cont->primary_asset);
 	free(cont->readers);
 	free(cont);
 }
@@ -149,7 +381,7 @@ struct xnb_container *read_container(FILE *fp)
 
 	for (i = 0; i < cont->type_reader_count; i++) {
 		int read;
-		struct type_reader *r = &cont->readers[i];
+		struct type_reader_desc *r = &cont->readers[i];
 		read = Read7BitEncodedInt(fp);
 		if (read < 0) {
 			fprintf(stderr, "Couldn't read name of reader %d\n", i);
@@ -169,6 +401,34 @@ struct xnb_container *read_container(FILE *fp)
 	if (cont->shared_resource_count < 0) {
 		fprintf(stderr, "Couldn't read shared resource count\n");
 		goto fail;
+	}
+
+	i = Read7BitEncodedInt(fp);
+	if (i < 0) {
+		fprintf(stderr, "Couldn't read primary asset type\n");
+		goto fail;
+	} else if (i > 0) {
+		cont->primary_asset = read_object(&cont->readers[i - 1], fp);
+		if (!cont->primary_asset) {
+			fprintf(stderr, "Couldn't read primary asset\n");
+			goto fail;
+		}
+	}
+
+	for (i = 0; i < cont->shared_resource_count; i++) {
+		int type_idx = Read7BitEncodedInt(fp);
+		if (type_idx < 0) {
+			fprintf(stderr, "Couldn't read shared asset %d type\n",
+					type_idx);
+			goto fail;
+		} else if (type_idx > 0) {
+			cont->shared_resources[i] =
+				read_object(&cont->readers[type_idx - 1], fp);
+			if (!cont->shared_resources[i]) {
+				fprintf(stderr, "Couldn't read shared asset %d\n", type_idx);
+				goto fail;
+			}
+		}
 	}
 
 	return cont;
