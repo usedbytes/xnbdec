@@ -60,6 +60,115 @@ struct xnb_obj_sound_effect {
 	int32_t	duration;
 };
 
+int write_wave_file(struct xnb_obj_sound_effect *eff, char *filename)
+{
+	FILE *fp = fopen(filename, "w");
+	uint32_t u32buf;
+	uint16_t u16buf;
+	size_t wrote;
+	struct waveformatex *fmt = (struct waveformatex *)eff->format;
+	int res = -1;
+
+	wrote = fputs("RIFF", fp);
+	if (wrote == EOF) {
+		fprintf(stderr, "Couldn't write RIFF\n");
+		goto done;
+	}
+
+	u32buf = 36 + eff->data_size;
+	wrote = fwrite(&u32buf, sizeof(u32buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write ChunkSize\n");
+		goto done;
+	}
+
+	wrote = fputs("WAVE", fp);
+	if (wrote == EOF) {
+		fprintf(stderr, "Couldn't write WAVE\n");
+		goto done;
+	}
+
+	wrote = fputs("fmt ", fp);
+	if (wrote == EOF) {
+		fprintf(stderr, "Couldn't write fmt\n");
+		goto done;
+	}
+
+	u32buf = 16;
+	wrote = fwrite(&u32buf, sizeof(u32buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write SubChunk1Size\n");
+		goto done;
+	}
+
+	u16buf = 1;
+	wrote = fwrite(&u16buf, sizeof(u16buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write AudioFormat\n");
+		goto done;
+	}
+
+	u16buf = fmt->nChannels;
+	wrote = fwrite(&u16buf, sizeof(u16buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write NumChannels\n");
+		goto done;
+	}
+
+	u32buf = fmt->nSamplesPerSec;
+	wrote = fwrite(&u32buf, sizeof(u32buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write SampleRate\n");
+		goto done;
+	}
+
+	u32buf = fmt->nAvgBytesPerSec;
+	wrote = fwrite(&u32buf, sizeof(u32buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write ByteRate\n");
+		goto done;
+	}
+
+	u16buf = fmt->nBlockAlign;
+	wrote = fwrite(&u16buf, sizeof(u16buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write BlockAlign\n");
+		goto done;
+	}
+
+	u16buf = fmt->wBitsPerSample;
+	wrote = fwrite(&u16buf, sizeof(u16buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write BitsPerSample\n");
+		goto done;
+	}
+
+	wrote = fputs("data", fp);
+	if (wrote == EOF) {
+		fprintf(stderr, "Couldn't write 'data'\n");
+		goto done;
+	}
+
+	u32buf = eff->data_size;
+	wrote = fwrite(&u32buf, sizeof(u32buf), 1, fp);
+	if (wrote != 1) {
+		fprintf(stderr, "Couldn't write SubChunk2Size\n");
+		goto done;
+	}
+
+	wrote = fwrite(eff->data, 1, eff->data_size, fp);
+	if (wrote != eff->data_size) {
+		fprintf(stderr, "Couldn't write Data\n");
+		goto done;
+	}
+
+	res = 0;
+
+done:
+	fclose(fp);
+	return res;
+}
+
 void sound_effect_print(struct xnb_object_head *obj)
 {
 	struct xnb_obj_sound_effect *eff = (struct xnb_obj_sound_effect *)obj;
@@ -442,6 +551,8 @@ int main(int argc, char *argv[])
 {
 	FILE *fp;
 	struct xnb_container *cont;
+	char filename[MAX_NAME_LEN];
+	int res;
 
 	if (argc < 2) {
 		fprintf(stderr, "Need a file\n");
@@ -458,8 +569,17 @@ int main(int argc, char *argv[])
 	if (!cont) {
 		return 1;
 	}
+	fclose(fp);
 
 	dump_container(cont);
+
+	snprintf(filename, MAX_NAME_LEN, "%s.wav", argv[1]);
+	res = write_wave_file((struct xnb_obj_sound_effect *)cont->primary_asset,
+			filename);
+	if (res) {
+		fprintf(stderr, "Couldn't write wave file\n");
+	}
+
 	destroy_container(cont);
 
 	return 0;
