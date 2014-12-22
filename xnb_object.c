@@ -2,6 +2,7 @@
  * Copyright Brian Starkey 2014 <stark3y@gmail.com>
  */
 
+#include <assert.h>
 #include <string.h>
 
 #include "xnb_object.h"
@@ -14,32 +15,17 @@ const struct xnb_object_reader *readers[] = {
 
 void dump_object(struct xnb_object_head *obj)
 {
-	int i = 0;
-
-	if (obj == NULL)
-		return;
-
-	while (readers[i]) {
-		const struct xnb_object_reader *reader = readers[i];
-		if (reader->type == obj->type)
-			return reader->print(obj);
-		i++;
-	}
+	assert(obj != NULL);
+	assert(obj->reader != NULL);
+	obj->reader->print(obj);
 }
 
 void destroy_object(struct xnb_object_head *obj)
 {
-	int i = 0;
-
 	if (obj == NULL)
 		return;
-
-	while (readers[i]) {
-		const struct xnb_object_reader *reader = readers[i];
-		if (reader->type == obj->type)
-			return reader->destroy(obj);
-		i++;
-	}
+	assert(obj->reader != NULL);
+	obj->reader->destroy(obj);
 }
 
 struct xnb_object_head *read_object(struct type_reader_desc *rdr, FILE *fp)
@@ -54,4 +40,3 @@ struct xnb_object_head *read_object(struct type_reader_desc *rdr, FILE *fp)
 	fprintf(stderr, "Unsupported reader '%s'\n", rdr->name);
 	return NULL;
 }
-

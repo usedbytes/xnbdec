@@ -200,6 +200,7 @@ static struct xnb_object_head *sound_effect_read(FILE *fp)
 	}
 	memset(eff, 0, sizeof(*eff));
 	eff->head.type = XNB_OBJ_SOUND_EFFECT;
+	eff->head.reader = &sound_effect_reader;
 
 	read = fread(&eff->format_size, sizeof(eff->format_size), 1, fp);
 	if (read != 1) {

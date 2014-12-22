@@ -88,12 +88,20 @@ void dump_container(struct xnb_container *cont)
 	printf("Shared resource count: %d\n", cont->shared_resource_count);
 
 	printf("Primary Asset:\n");
-	dump_object(cont->primary_asset);
+	if (cont->primary_asset) {
+		dump_object(cont->primary_asset);
+	} else {
+		printf("[NULL]\n");
+	}
 
 	if (cont->shared_resource_count) {
 		printf("Shared Assets:\n");
 		for (i = 0; i < cont->shared_resource_count; i++) {
-			dump_object(cont->shared_resources[i]);
+			if (cont->shared_resources[i]) {
+				dump_object(cont->shared_resources[i]);
+			} else {
+				printf("[NULL]\n");
+			}
 		}
 	}
 }
@@ -145,6 +153,11 @@ struct xnb_container *read_container(FILE *fp)
 	res = read_header(&cont->hdr, fp);
 	if (res) {
 		fprintf(stderr, "Couldn't read header\n");
+		goto fail;
+	}
+
+	if (cont->hdr.flags & FLAG_COMPRESSED) {
+		fprintf(stderr, "Compressed files not supported\n");
 		goto fail;
 	}
 

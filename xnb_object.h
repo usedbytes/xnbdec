@@ -17,6 +17,7 @@ enum xnb_object_type {
 /* Put this at the top of any specific object structures */
 struct xnb_object_head {
 	enum xnb_object_type type;
+	const struct xnb_object_reader *reader;
 };
 
 struct type_reader_desc {
