@@ -31,9 +31,10 @@ struct xnb_object_reader {
 	struct xnb_object_head *(*deserialize)(FILE *fp);
 	void (*destroy)(struct xnb_object_head *obj);
 	void (*print)(struct xnb_object_head *obj);
-	int (*export)(struct xnb_object_head *obj, char basename);
+	int (*export)(struct xnb_object_head *obj, char *basename);
 };
 
 void dump_object(struct xnb_object_head *obj);
 void destroy_object(struct xnb_object_head *obj);
 struct xnb_object_head *read_object(struct type_reader_desc *rdr, FILE *fp);
+int export_object(struct xnb_object_head *obj, char *basename);

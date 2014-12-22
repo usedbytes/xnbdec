@@ -46,14 +46,25 @@ static void dump_waveformatex(struct waveformatex *format)
 	printf("--------------\n");
 }
 
-int write_wave_file(struct xnb_obj_sound_effect *eff, char *filename)
+static int sound_effect_export(struct xnb_object_head *obj,
+		char *basename)
 {
-	FILE *fp = fopen(filename, "w");
+	FILE *fp;
+	char filename[MAX_NAME_LEN];
 	uint32_t u32buf;
 	uint16_t u16buf;
 	size_t wrote;
+	struct xnb_obj_sound_effect *eff = (struct xnb_obj_sound_effect *)obj;
 	struct waveformatex *fmt = (struct waveformatex *)eff->format;
 	int res = -1;
+
+	assert(obj->type == XNB_OBJ_SOUND_EFFECT);
+	snprintf(filename, MAX_NAME_LEN, "%s.wav", basename);
+	fp = fopen(filename, "w");
+	if (!fp) {
+		fprintf(stderr, "Couldn't open file\n");
+		return res;
+	}
 
 	wrote = fputs("RIFF", fp);
 	if (wrote == EOF) {
@@ -271,5 +282,6 @@ const struct xnb_object_reader sound_effect_reader = {
 	.deserialize = sound_effect_read,
 	.destroy = sound_effect_destroy,
 	.print = sound_effect_print,
+	.export = sound_effect_export,
 };
 

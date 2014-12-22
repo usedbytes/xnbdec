@@ -236,7 +236,6 @@ int main(int argc, char *argv[])
 {
 	FILE *fp;
 	struct xnb_container *cont;
-	char filename[MAX_NAME_LEN];
 	int res;
 
 	if (argc < 2) {
@@ -258,14 +257,11 @@ int main(int argc, char *argv[])
 
 	dump_container(cont);
 
-	/*
-	snprintf(filename, MAX_NAME_LEN, "%s.wav", argv[1]);
-	res = write_wave_file((struct xnb_obj_sound_effect *)cont->primary_asset,
-			filename);
-	if (res) {
-		fprintf(stderr, "Couldn't write wave file\n");
+	if (cont->primary_asset) {
+		res = export_object(cont->primary_asset, argv[1]);
+		if (res)
+			fprintf(stderr, "Couldn't export primary asset\n");
 	}
-	*/
 
 	destroy_container(cont);
 

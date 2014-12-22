@@ -3,6 +3,7 @@
  */
 
 #include <assert.h>
+#include <errno.h>
 #include <string.h>
 
 #include "xnb_object.h"
@@ -39,4 +40,18 @@ struct xnb_object_head *read_object(struct type_reader_desc *rdr, FILE *fp)
 	}
 	fprintf(stderr, "Unsupported reader '%s'\n", rdr->name);
 	return NULL;
+}
+
+int export_object(struct xnb_object_head *obj, char *basename)
+{
+	assert(obj != NULL);
+	assert(obj->reader != NULL);
+
+	if (obj->reader->export) {
+		return obj->reader->export(obj, basename);
+	} else {
+		fprintf(stderr, "No exporter found for reader '%s'\n",
+				obj->reader->name);
+		return -ENOENT;
+	}
 }
